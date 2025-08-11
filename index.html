@@ -99,12 +99,14 @@
 <body>
   <h2>Watch our demo video</h2>
 
+  <!-- Wrapper to hold video/thumbnail -->
   <div id="hs-gate__video-container">
     <div id="hs-gate__thumb-wrap">
       <img id="hs-gate__thumb" src="https://img.youtube.com/vi/rwG14cDNEBI/maxresdefault.jpg" alt="Video thumbnail">
     </div>
   </div>
 
+  <!-- Modal -->
   <div id="hs-gate__modal">
     <div id="hs-gate__box">
       <button id="hs-gate__close" aria-label="Close video gate">✕</button>
@@ -124,12 +126,8 @@
       const modal = document.getElementById('hs-gate__modal');
       const modalClose = document.getElementById('hs-gate__close');
 
-      // Function to create and render the HubSpot form
-      function renderHubspotForm() {
-        if (!window.hbspt) {
-          console.error("HubSpot forms script not loaded.");
-          return;
-        }
+      window.addEventListener('load', () => {
+        if (!window.hbspt) return;
         hbspt.forms.create({
           region: 'na1',
           portalId: PORTAL_ID,
@@ -138,56 +136,34 @@
           onFormSubmitted: () => {
             sessionStorage.setItem(SESSION_KEY, 'yes');
             closeModal();
-            playVideo();
+            playVideo(); // start video immediately
           }
         });
-      }
+      });
 
-      // Function to open the modal
-      function openModal() {
-        modal.classList.add('open');
-      }
+      thumbWrap.addEventListener('click', () => {
+        sessionStorage.getItem(SESSION_KEY) ? playVideo() : openModal();
+      });
 
-      // Function to close the modal
-      function closeModal() {
-        modal.classList.remove('open');
-      }
+      modalClose.addEventListener('click', () => {
+        closeModal();
+      });
 
-      // Function to play the video
+      function openModal() { modal.classList.add('open'); }
+      function closeModal() { modal.classList.remove('open'); }
+
       function playVideo() {
-        // Check if the video is already playing
-        if (document.getElementById('hs-gate__yt-frame')) {
-          return;
-        }
-
+        if (document.getElementById('hs-gate__yt-frame')) return;
         const iframe = document.createElement('iframe');
         iframe.id = 'hs-gate__yt-frame';
-        iframe.src = `https://www.youtube.com/embed/${YT_ID}?autoplay=1&rel=0`;
+        iframe.src = `https://www.youtube.com/embed/${YT_ID}?autoplay=1&rel=0&mute=1`;
         iframe.width = 640;
         iframe.height = 360;
-        iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
+        iframe.allow = 'autoplay; encrypted-media';
         iframe.style.maxWidth = '100%';
-        iframe.setAttribute('frameborder', '0');
-        
         videoContainer.innerHTML = '';
         videoContainer.appendChild(iframe);
       }
-
-      // Event listener for thumbnail click
-      thumbWrap.addEventListener('click', () => {
-        if (sessionStorage.getItem(SESSION_KEY)) {
-          playVideo();
-        } else {
-          openModal();
-        }
-      });
-
-      // Event listener for modal close button
-      modalClose.addEventListener('click', closeModal);
-      
-      // Wait for the HubSpot script to load before rendering the form
-      window.addEventListener('load', renderHubspotForm);
-      document.addEventListener('DOMContentLoaded', renderHubspotForm);
     })();
   </script>
 </body>
