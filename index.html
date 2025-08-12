@@ -1,22 +1,41 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="utf-8">
   <title>Gated YouTube video with Two HubSpot Forms</title>
   <script src="//js.hsforms.net/forms/v2.js" charset="utf-8"></script>
-  <script src="https://www.youtube.com/iframe_api"></script>
   <style>
     body {
       font-family: sans-serif;
       margin: 0;
       padding: 2rem;
     }
-
+    #hs-gate__thumb-wrap {
+      position: relative;
+      display: inline-block;
+      cursor: pointer;
+    }
+    #hs-gate__thumb {
+      max-width: 640px;
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    #hs-gate__thumb-wrap::after {
+      content: "▶";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 64px;
+      color: #fff;
+      text-shadow: 0 0 10px #000;
+      pointer-events: none;
+    }
     #hs-gate__modal {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, .6);
+      background: rgba(0,0,0,.6);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -25,22 +44,19 @@
       transition: opacity .25s ease;
       z-index: 9999;
     }
-
     #hs-gate__modal.open {
       visibility: visible;
       opacity: 1;
     }
-
     #hs-gate__box {
       background: #fff;
       padding: 2rem;
       border-radius: 6px;
       max-width: 480px;
       width: 90%;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, .25);
+      box-shadow: 0 4px 20px rgba(0,0,0,.25);
       position: relative;
     }
-
     #hs-gate__close {
       position: absolute;
       top: .6rem;
@@ -49,38 +65,25 @@
       height: 32px;
       border-radius: 50%;
       border: none;
-      background: rgba(0, 0, 0, .05);
-      color: #333;
+      background: rgba(0,0,0,.05);
       font-size: 20px;
       cursor: pointer;
-    }
-
-    button#play-video {
-      background: #0073e6;
-      color: white;
-      border: none;
-      padding: 12px 24px;
-      font-size: 18px;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-
-    button#play-video:hover {
-      background: #005bb5;
+      line-height: 1;
     }
   </style>
 </head>
-
 <body>
   <h2>Watch our demo video</h2>
 
-  <div id="video-container">
-    <button id="play-video">▶ Watch Video</button>
+  <div id="hs-gate__video-container">
+    <div id="hs-gate__thumb-wrap">
+      <img id="hs-gate__thumb" src="https://img.youtube.com/vi/rwG14cDNEBI/maxresdefault.jpg" alt="Video thumbnail">
+    </div>
   </div>
 
   <div id="hs-gate__modal">
     <div id="hs-gate__box">
-      <button id="hs-gate__close">✕</button>
+      <button id="hs-gate__close" aria-label="Close video gate">✕</button>
       <div class="hs-gate__form-frame"></div>
     </div>
   </div>
@@ -88,105 +91,91 @@
   <script>
     (() => {
       const YT_ID = 'rwG14cDNEBI';
-      const FIRST_FORM_ID = '5d53e7d7-222e-40f9-a17a-4ca69a2cadb9'; // Replace with your first HubSpot form ID
-      const SECOND_FORM_ID = '3083ac2d-f381-402d-b230-a47b7f449e46'; // Replace with your second HubSpot form ID
       const PORTAL_ID = '45865556';
+      const FORM_ID_FIRST = '5d53e7d7-222e-40f9-a17a-4ca69a2cadb9';
+      const FORM_ID_SECOND = '3083ac2d-f381-402d-b230-a47b7f449e46';
+      const KEY_FIRST = 'hsGateFirstDone';
+      const KEY_SECOND = 'hsGateSecondDone';
 
-      const firstKey = 'hsGateFirstDone';
-      const secondKey = 'hsGateSecondDone';
-      let player;
-      let secondFormShown = false;
-      let resumeTime = 0;
+      let player, resumeTime = 0, halfShown = false;
 
-      const playBtn = document.getElementById('play-video');
+      const videoContainer = document.getElementById('hs-gate__video-container');
+      const thumbWrap = document.getElementById('hs-gate__thumb-wrap');
       const modal = document.getElementById('hs-gate__modal');
-      const closeBtn = document.getElementById('hs-gate__close');
-      const formFrame = document.querySelector('.hs-gate__form-frame');
-      const videoContainer = document.getElementById('video-container');
+      const modalClose = document.getElementById('hs-gate__close');
 
-      // Load YouTube player
+      // Load YouTube API
+      const tag = document.createElement('script');
+      tag.src = "https://www.youtube.com/iframe_api";
+      document.head.appendChild(tag);
+
       window.onYouTubeIframeAPIReady = () => {
-        player = new YT.Player('ytplayer', {
-          events: {
-            'onStateChange': onPlayerStateChange
-          }
+        player = new YT.Player('hs-gate__yt-frame', {
+          videoId: YT_ID,
+          playerVars: { rel: 0, autoplay: 0, mute: 1 },
+          events: { onStateChange: onPlayerStateChange }
         });
       };
 
       function onPlayerStateChange(event) {
-        if (event.data === YT.PlayerState.PLAYING) {
+        if (event.data === YT.PlayerState.PLAYING && !halfShown && !localStorage.getItem(KEY_SECOND)) {
           const duration = player.getDuration();
-          const interval = setInterval(() => {
-            if (player.getPlayerState() !== YT.PlayerState.PLAYING) {
-              clearInterval(interval);
-              return;
-            }
-            const currentTime = player.getCurrentTime();
-            if (!localStorage.getItem(secondKey) && !secondFormShown && currentTime >= duration / 2) {
-              secondFormShown = true;
-              resumeTime = currentTime;
+          const checkHalf = setInterval(() => {
+            if (player.getCurrentTime() >= duration / 2) {
+              clearInterval(checkHalf);
+              halfShown = true;
+              resumeTime = player.getCurrentTime();
               player.pauseVideo();
-              showForm('second');
-              clearInterval(interval);
+              openForm(FORM_ID_SECOND, KEY_SECOND, () => {
+                player.seekTo(resumeTime);
+                player.playVideo();
+              });
             }
           }, 1000);
         }
       }
 
-      function openModal() {
+      thumbWrap.addEventListener('click', () => {
+        if (localStorage.getItem(KEY_FIRST)) {
+          playVideo();
+        } else {
+          openForm(FORM_ID_FIRST, KEY_FIRST, playVideo);
+        }
+      });
+
+      modalClose.addEventListener('click', closeModal);
+
+      function playVideo() {
+        videoContainer.innerHTML = `<div id="hs-gate__yt-frame"></div>`;
+        if (window.YT && YT.Player) {
+          player = new YT.Player('hs-gate__yt-frame', {
+            videoId: YT_ID,
+            playerVars: { rel: 0, autoplay: 1, mute: 1 },
+            events: { onStateChange: onPlayerStateChange }
+          });
+        }
+      }
+
+      function openForm(formId, storageKey, callback) {
         modal.classList.add('open');
-      }
-
-      function closeModal() {
-        modal.classList.remove('open');
-      }
-
-      function showForm(type) {
-        formFrame.innerHTML = '';
-        const formId = type === 'first' ? FIRST_FORM_ID : SECOND_FORM_ID;
+        document.querySelector('.hs-gate__form-frame').innerHTML = '';
         hbspt.forms.create({
           region: 'na1',
           portalId: PORTAL_ID,
           formId: formId,
           target: '.hs-gate__form-frame',
           onFormSubmitted: () => {
-            if (type === 'first') {
-              localStorage.setItem(firstKey, 'yes');
-              closeModal();
-              startVideo();
-            } else {
-              localStorage.setItem(secondKey, 'yes');
-              closeModal();
-              player.seekTo(resumeTime);
-              player.playVideo();
-            }
-          }
-        });
-        openModal();
-      }
-
-      function startVideo() {
-        videoContainer.innerHTML = `<div id="ytplayer"></div>`;
-        player = new YT.Player('ytplayer', {
-          videoId: YT_ID,
-          playerVars: { autoplay: 1, rel: 0, mute: 1 },
-          events: {
-            'onStateChange': onPlayerStateChange
+            localStorage.setItem(storageKey, 'yes');
+            closeModal();
+            if (typeof callback === 'function') callback();
           }
         });
       }
 
-      playBtn.addEventListener('click', () => {
-        if (!localStorage.getItem(firstKey)) {
-          showForm('first');
-        } else {
-          startVideo();
-        }
-      });
-
-      closeBtn.addEventListener('click', closeModal);
+      function closeModal() {
+        modal.classList.remove('open');
+      }
     })();
   </script>
 </body>
-
 </html>
