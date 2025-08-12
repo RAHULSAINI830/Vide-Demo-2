@@ -118,31 +118,55 @@
     (() => {
       const YT_ID = 'rwG14cDNEBI';
       const PORTAL_ID = '45865556';
-      const FORM_ID = '51248845-3c02-48a1-8e99-1e096e2caae6';
-      const SESSION_KEY = 'hsGateDone';
+      const FORM_ID = '5d53e7d7-222e-40f9-a17a-4ca69a2cadb9';
+      const SESSION_KEY_FIRST = 'hsGateDoneFirst';
+      const SESSION_KEY_SECOND = 'hsGateDoneSecond';
+
+      let player;
+      let secondGateTriggered = false;
+      let resumeTime = 0;
 
       const videoContainer = document.getElementById('hs-gate__video-container');
       const thumbWrap = document.getElementById('hs-gate__thumb-wrap');
       const modal = document.getElementById('hs-gate__modal');
       const modalClose = document.getElementById('hs-gate__close');
+      const formFrame = document.querySelector('.hs-gate__form-frame');
+
+      // Load YouTube API
+      const tag = document.createElement('script');
+      tag.src = "https://www.youtube.com/iframe_api";
+      document.head.appendChild(tag);
 
       window.addEventListener('load', () => {
         if (!window.hbspt) return;
+        loadHubSpotForm();
+      });
+
+      function loadHubSpotForm() {
         hbspt.forms.create({
           region: 'na1',
           portalId: PORTAL_ID,
           formId: FORM_ID,
           target: '.hs-gate__form-frame',
           onFormSubmitted: () => {
-            sessionStorage.setItem(SESSION_KEY, 'yes');
-            closeModal();
-            playVideo(); // start video immediately
+            if (!sessionStorage.getItem(SESSION_KEY_FIRST)) {
+              sessionStorage.setItem(SESSION_KEY_FIRST, 'yes');
+              closeModal();
+              playVideo();
+            } else if (!sessionStorage.getItem(SESSION_KEY_SECOND)) {
+              sessionStorage.setItem(SESSION_KEY_SECOND, 'yes');
+              closeModal();
+              if (player) {
+                player.seekTo(resumeTime);
+                player.playVideo();
+              }
+            }
           }
         });
-      });
+      }
 
       thumbWrap.addEventListener('click', () => {
-        sessionStorage.getItem(SESSION_KEY) ? playVideo() : openModal();
+        sessionStorage.getItem(SESSION_KEY_FIRST) ? playVideo() : openModal();
       });
 
       modalClose.addEventListener('click', () => {
@@ -154,15 +178,36 @@
 
       function playVideo() {
         if (document.getElementById('hs-gate__yt-frame')) return;
-        const iframe = document.createElement('iframe');
+        const iframe = document.createElement('div');
         iframe.id = 'hs-gate__yt-frame';
-        iframe.src = `https://www.youtube.com/embed/${YT_ID}?autoplay=1&rel=0&mute=1`;
-        iframe.width = 640;
-        iframe.height = 360;
-        iframe.allow = 'autoplay; encrypted-media';
-        iframe.style.maxWidth = '100%';
         videoContainer.innerHTML = '';
         videoContainer.appendChild(iframe);
+        player = new YT.Player('hs-gate__yt-frame', {
+          height: '360',
+          width: '640',
+          videoId: YT_ID,
+          playerVars: { autoplay: 1, rel: 0, mute: 1 },
+          events: {
+            'onStateChange': onPlayerStateChange
+          }
+        });
+      }
+
+      function onPlayerStateChange(event) {
+        if (event.data === YT.PlayerState.PLAYING) {
+          const duration = player.getDuration();
+          setInterval(() => {
+            const currentTime = player.getCurrentTime();
+            if (!secondGateTriggered &&
+              currentTime >= duration / 2 &&
+              !sessionStorage.getItem(SESSION_KEY_SECOND)) {
+              secondGateTriggered = true;
+              resumeTime = currentTime;
+              player.pauseVideo();
+              openModal();
+            }
+          }, 1000);
+        }
       }
     })();
   </script>
